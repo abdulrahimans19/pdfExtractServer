@@ -11,7 +11,7 @@ app.use(cors());
 
 dotenv.config();
 connection();
-
+app.use("/uploads", express.static("uploads"));
 app.use("/api/auth", userRoutes);
 app.use("/api/file", pdfRoutes);
 

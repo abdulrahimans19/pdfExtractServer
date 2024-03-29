@@ -6,6 +6,10 @@ const pdfSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
+  fileName: {
+    type: String,
+    required: true,
+  },
   filePath: {
     type: String,
     required: true,

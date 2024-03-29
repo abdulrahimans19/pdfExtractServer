@@ -19,7 +19,7 @@ const uploadPdf = async (req, res) => {
     // Save uploaded PDF information to database
     const newPdf = new Pdf({
       user: user,
-      fileName: fileName,
+      fileName: fileName, // Save the original file name
       filePath: filePath,
       extractedPages: [],
     });
@@ -45,10 +45,7 @@ const uploadPdf = async (req, res) => {
 const extractPages = async (req, res) => {
   try {
     const { pdfId, selectedPages } = req.body;
-
-    // Retrieve PDF file path from database
     const pdf = await Pdf.findById(pdfId);
-
     if (!pdf) {
       return res.status(404).json({
         status: "error",
@@ -69,14 +66,35 @@ const extractPages = async (req, res) => {
 
     const newPdfBytes = await newPdf.save();
 
-    // Save new PDF file
-    const newFilePath = `./uploads/extracted_${pdfId}.pdf`;
+    // Get the filename without extension and the extension separately
+    const originalFileName = pdf.fileName.split('.')[0];
+    const originalFileExtension = pdf.fileName.split('.')[1];
+
+    // Check if a file with the same name exists
+    let count = 0;
+    let newFileName = `${originalFileName}.${originalFileExtension}`;
+    while (fs.existsSync(`./uploads/${newFileName}`)) {
+      count++;
+      newFileName = `${originalFileName} (${count}).${originalFileExtension}`;
+    }
+
+    // Save new PDF file with the appropriate filename
+    const newFilePath = `./uploads/${newFileName}`;
     fs.writeFileSync(newFilePath, newPdfBytes);
 
     // Update extracted pages information in database
     await Pdf.findByIdAndUpdate(pdfId, {
       $push: { extractedPages: selectedPages },
     });
+
+    // Save information of the extracted PDF file to database
+    const extractedPdf = new Pdf({
+      user: pdf.user,
+      fileName: newFileName,
+      filePath: newFilePath,
+      extractedPages: selectedPages,
+    });
+    await extractedPdf.save();
 
     res.status(200).json({
       status: "success",
@@ -116,4 +134,31 @@ const listSavedPdfFiles = async (req, res) => {
     });
   }
 };
-module.exports = { uploadPdf, extractPages, listSavedPdfFiles };
+
+const deletePdf = async (req, res) => {
+  try {
+    const { pdfId } = req.body; // Get the PDF ID from the request body
+    // Find the PDF by ID and remove it from the database
+    const deletedPdf = await Pdf.findByIdAndDelete(pdfId);
+    if (!deletedPdf) {
+      return res.status(404).json({
+        status: "error",
+        message: "PDF file not found",
+      });
+    }
+    // Delete the file from the filesystem
+    fs.unlinkSync(deletedPdf.filePath);
+    res.status(200).json({
+      status: "success",
+      message: "PDF file deleted successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to delete PDF file",
+    });
+  }
+};
+
+module.exports = { uploadPdf, extractPages, listSavedPdfFiles ,deletePdf};
